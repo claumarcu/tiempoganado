@@ -18,11 +18,9 @@ def normalize_phone(phone: str) -> str | None:
     if len(digits) < 8:
         return None
 
-    # Si ya viene con código país
     if digits.startswith("54"):
         return digits
 
-    # Si es celular típico argentino
     if digits.startswith("11"):
         return "549" + digits
 
@@ -36,7 +34,7 @@ def build_name(row: dict) -> str:
     name = f"{first} {last}".strip()
 
     if not name:
-        return "sin_nombre"
+        return ""
 
     return name
 
@@ -52,6 +50,22 @@ def extract_phone(row: dict) -> str | None:
             normalized = normalize_phone(phone)
             if normalized:
                 return normalized
+
+    return None
+
+
+def detect_tag(name: str) -> str | None:
+    """
+    Detecta etiquetas según tu convención de agenda
+    1K → alumno
+    1A → interesado
+    """
+
+    if name.startswith("1K"):
+        return "alumno"
+
+    if name.startswith("1A"):
+        return "interesado"
 
     return None
 
@@ -72,6 +86,12 @@ def importar() -> None:
         reader = csv.DictReader(f)
 
         for row in reader:
+            name = build_name(row)
+
+            if not name.startswith("1"):
+                skipped += 1
+                continue
+
             phone = extract_phone(row)
 
             if not phone:
@@ -84,15 +104,14 @@ def importar() -> None:
 
             seen.add(phone)
 
-            name = build_name(row)
-            email = row.get("E-mail 1 - Value")
+            tag = detect_tag(name)
 
             contact = Contact(
                 id=None,
                 nombre=name,
                 telefono=phone,
-                email=email,
-                etiquetas=None,
+                email=row.get("E-mail 1 - Value"),
+                etiquetas=tag,
                 estado="activo",
                 origen="google_contacts",
             )
@@ -103,6 +122,7 @@ def importar() -> None:
             except Exception:
                 skipped += 1
 
+    print()
     print("Importación finalizada")
     print("Contactos insertados:", inserted)
     print("Contactos descartados:", skipped)
@@ -110,3 +130,5 @@ def importar() -> None:
 
 if __name__ == "__main__":
     importar()
+
+ 
