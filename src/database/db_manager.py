@@ -7,7 +7,6 @@ from typing import Iterator, List, Optional
 
 from src.config import DATABASE_CONFIG
 
-
 # ---------------------------------------------------------------------
 # DATA MODEL
 # ---------------------------------------------------------------------

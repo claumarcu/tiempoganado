@@ -3,13 +3,15 @@ from __future__ import annotations
 import csv
 import re
 from pathlib import Path
+from typing import Dict, Optional, Set
 
-from src.database.db_manager import Contact, add_contact, initialize_database
 from src.config import CONTACTS_FILE
+from src.database.db_manager import Contact, add_contact, initialize_database
 
 
-def normalize_phone(phone: str) -> str | None:
+def normalize_phone(phone: str) -> Optional[str]:
     """Normaliza teléfonos argentinos."""
+
     if not phone:
         return None
 
@@ -18,53 +20,88 @@ def normalize_phone(phone: str) -> str | None:
     if len(digits) < 8:
         return None
 
-    if digits.startswith("54"):
+    # formato internacional correcto
+    if digits.startswith("549"):
         return digits
 
+    if digits.startswith("54"):
+        return "9" + digits
+
     if digits.startswith("11"):
+        return "549" + digits
+
+    if len(digits) == 10:
         return "549" + digits
 
     return digits
 
 
-def build_name(row: dict) -> str:
-    first = row.get("First Name", "").strip()
-    last = row.get("Last Name", "").strip()
+def clean_text(text: str) -> str:
+    """Limpia emojis y espacios extra."""
 
-    name = f"{first} {last}".strip()
-
-    if not name:
+    if not text:
         return ""
+
+    text = text.strip()
+
+    # eliminar caracteres raros
+    text = re.sub(r"[^\w\s@.-]", "", text)
+
+    # normalizar espacios
+    text = re.sub(r"\s+", " ", text)
+
+    return text
+
+
+def build_name(row: Dict[str, str]) -> str:
+    """Reconstruye nombre desde columnas de Google Contacts."""
+
+    first = row.get("First Name", "")
+    middle = row.get("Middle Name", "")
+    last = row.get("Last Name", "")
+
+    name = f"{first} {middle} {last}".strip()
+
+    name = clean_text(name)
 
     return name
 
 
-def extract_phone(row: dict) -> str | None:
-    for field in [
+def extract_phone(row: Dict[str, str]) -> Optional[str]:
+    """Extrae primer teléfono válido."""
+
+    for field in (
         "Phone 1 - Value",
         "Phone 2 - Value",
         "Phone 3 - Value",
-    ]:
+    ):
         phone = row.get(field)
-        if phone:
-            normalized = normalize_phone(phone)
-            if normalized:
-                return normalized
+
+        if not phone:
+            continue
+
+        normalized = normalize_phone(phone)
+
+        if normalized:
+            return normalized
 
     return None
 
 
-def detect_tag(name: str) -> str | None:
+def detect_tag(name: str) -> Optional[str]:
     """
-    Detecta etiquetas según tu convención de agenda
+    Detecta etiquetas según convención agenda.
+
     1K → alumno
     1A → interesado
     """
 
-    if name.startswith("1K"):
+    lowered = name.lower()
+
+    if lowered.startswith("1k"):
         return "alumno"
 
-    if name.startswith("1A"):
+    if lowered.startswith("1a"):
         return "interesado"
 
     return None
@@ -80,17 +117,22 @@ def importar() -> None:
 
     inserted = 0
     skipped = 0
-    seen = set()
+
+    seen: Set[str] = set()
 
     with open(path, encoding="utf-8") as f:
+
         reader = csv.DictReader(f)
 
         for row in reader:
+
             name = build_name(row)
 
-            if not name.startswith("1"):
+            if not name:
                 skipped += 1
                 continue
+
+            tag = detect_tag(name)
 
             phone = extract_phone(row)
 
@@ -104,13 +146,13 @@ def importar() -> None:
 
             seen.add(phone)
 
-            tag = detect_tag(name)
+            email = row.get("E-mail 1 - Value", "")
 
             contact = Contact(
                 id=None,
                 nombre=name,
                 telefono=phone,
-                email=row.get("E-mail 1 - Value"),
+                email=email,
                 etiquetas=tag,
                 estado="activo",
                 origen="google_contacts",
@@ -130,5 +172,3 @@ def importar() -> None:
 
 if __name__ == "__main__":
     importar()
-
- 

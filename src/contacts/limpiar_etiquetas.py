@@ -1,5 +1,6 @@
 from src.database.db_manager import get_connection
 
+
 def limpiar_contactos_invalidos():
     with get_connection() as conn:
         cursor = conn.cursor()
