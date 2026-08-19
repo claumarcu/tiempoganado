@@ -10,5 +10,7 @@ def enviar_mensaje(numero, mensaje):
     time.sleep(3)
     pyautogui.write(mensaje, interval=0.05)
     pyautogui.press("enter")
+    return True
 
-enviar_mensaje("1155618828", "Mensaje de prueba")
+resultado = enviar_mensaje("1155618828", "Mensaje de prueba")
+print("Resultado:", resultado)
